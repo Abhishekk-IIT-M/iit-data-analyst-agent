@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Analyst Agent API</title>
+    <link href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css" rel="stylesheet">
+    <style>
+        .code-block {
+            background-color: var(--bs-dark);
+            border: 1px solid var(--bs-gray-700);
+            border-radius: 0.375rem;
+            padding: 1rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.875rem;
+            overflow-x: auto;
+        }
+        .endpoint-card {
+            border: 1px solid var(--bs-gray-600);
+            border-radius: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .method-badge {
+            font-weight: bold;
+            font-size: 0.75rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container my-5">
+        <div class="row">
+            <div class="col-12">
+                <h1 class="display-4 mb-4">Data Analyst Agent API</h1>
+                <p class="lead">A comprehensive Flask-based API for data analysis, web scraping, statistical analysis, and visualization with LangChain integration.</p>
+            </div>
+        </div>
+
+        <!-- API Overview -->
+        <div class="row mb-5">
+            <div class="col-12">
+                <h2>Overview</h2>
+                <p>This API provides intelligent data analysis capabilities including:</p>
+                <ul>
+                    <li><strong>File Upload Analysis:</strong> CSV and Parquet file processing</li>
+                    <li><strong>Web Scraping:</strong> Extract and analyze data from websites</li>
+                    <li><strong>S3 Data Querying:</strong> Query Parquet files stored in S3 using DuckDB</li>
+                    <li><strong>Statistical Analysis:</strong> Correlation, regression, normality tests, and outlier detection</li>
+                    <li><strong>Data Visualization:</strong> Automatic chart generation with base64 encoding</li>
+                    <li><strong>AI Insights:</strong> LangChain-powered intelligent analysis and recommendations</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Main Endpoint -->
+        <div class="row">
+            <div class="col-12">
+                <h2>API Endpoints</h2>
+                
+                <div class="endpoint-card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h4 class="mb-0">Analyze Data</h4>
+                        <span class="badge bg-success method-badge">POST</span>
+                    </div>
+                    <div class="card-body">
+                        <p><strong>Endpoint:</strong> <code>/analyze</code></p>
+                        <p><strong>Description:</strong> Main endpoint for comprehensive data analysis</p>
+                        
+                        <h5>Parameters</h5>
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Parameter</th>
+                                        <th>Type</th>
+                                        <th>Required</th>
+                                        <th>Description</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><code>file</code></td>
+                                        <td>File</td>
+                                        <td>No*</td>
+                                        <td>CSV or Parquet file upload</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>web_url</code></td>
+                                        <td>String</td>
+                                        <td>No*</td>
+                                        <td>URL to scrape and analyze</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>s3_path</code></td>
+                                        <td>String</td>
+                                        <td>No*</td>
+                                        <td>S3 path to Parquet file</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>analysis_type</code></td>
+                                        <td>String</td>
+                                        <td>No</td>
+                                        <td>Analysis level: "basic", "comprehensive", "statistical" (default: "basic")</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>query</code></td>
+                                        <td>String</td>
+                                        <td>No</td>
+                                        <td>SQL query for S3 data or analysis question</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>visualization_type</code></td>
+                                        <td>String</td>
+                                        <td>No</td>
+                                        <td>"auto", "histogram", "boxplot", "correlation", "scatter", "bar", "none" (default: "auto")</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>statistical_tests</code></td>
+                                        <td>Array</td>
+                                        <td>No</td>
+                                        <td>Custom statistical tests: ["t_test", "chi_square"]</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p><small>* At least one data source (file, web_url, or s3_path) is required</small></p>
+
+                        <h5>Example Request (File Upload)</h5>
+                        <div class="code-block">
+curl -X POST http://localhost:5000/analyze \
+  -F "file=@data.csv" \
+  -F "analysis_type=comprehensive" \
+  -F "visualization_type=auto" \
+  -F "query=What are the main trends in this data?"
+                        </div>
+
+                        <h5>Example Request (Web Scraping)</h5>
+                        <div class="code-block">
+curl -X POST http://localhost:5000/analyze \
+  -H "Content-Type: application/json" \
+  -d '{
+    "web_url": "https://en.wikipedia.org/wiki/Data_science",
+    "analysis_type": "basic",
+    "visualization_type": "auto"
+  }'
+                        </div>
+
+                        <h5>Example Request (S3 Data)</h5>
+                        <div class="code-block">
+curl -X POST http://localhost:5000/analyze \
+  -H "Content-Type: application/json" \
+  -d '{
+    "s3_path": "s3://my-bucket/data/sales.parquet",
+    "query": "SELECT * FROM '\''{s3_path}'\'' WHERE date >= '\''2024-01-01'\''",
+    "analysis_type": "statistical",
+    "visualization_type": "correlation"
+  }'
+                        </div>
+
+                        <h5>Response Format</h5>
+                        <div class="code-block">
+{
+  "success": true,
+  "error": false,
+  "message": "Analysis completed successfully",
+  "data": {
+    "analysis_type": "comprehensive",
+    "data_summary": {
+      "rows": 1000,
+      "columns": 5,
+      "column_names": ["date", "value", "category"],
+      "data_types": {...},
+      "missing_values": {...}
+    },
+    "statistical_analysis": {
+      "descriptive_stats": {...},
+      "correlation_analysis": {...},
+      "normality_tests": {...},
+      "outlier_analysis": {...},
+      "regression_analysis": {...}
+    },
+    "visualizations": [
+      {
+        "type": "histogram",
+        "title": "Distribution Analysis",
+        "description": "...",
+        "image": "base64_encoded_image_string",
+        "columns_analyzed": ["column1", "column2"]
+      }
+    ],
+    "insights": [
+      {
+        "type": "general",
+        "title": "Dataset Overview",
+        "content": "Key insights about your data..."
+      }
+    ],
+    "metadata": {...}
+  },
+  "timestamp": "2024-08-06T12:00:00.000Z"
+}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Error Responses -->
+                <div class="endpoint-card">
+                    <div class="card-header">
+                        <h4 class="mb-0">Error Responses</h4>
+                    </div>
+                    <div class="card-body">
+                        <h5>400 Bad Request</h5>
+                        <div class="code-block">
+{
+  "success": false,
+  "error": true,
+  "message": "No data source provided. Please upload a file, provide a web URL, or specify an S3 path.",
+  "timestamp": "2024-08-06T12:00:00.000Z"
+}
+                        </div>
+
+                        <h5>413 Payload Too Large</h5>
+                        <div class="code-block">
+{
+  "success": false,
+  "error": true,
+  "message": "File too large. Maximum size is 100MB.",
+  "timestamp": "2024-08-06T12:00:00.000Z"
+}
+                        </div>
+
+                        <h5>500 Internal Server Error</h5>
+                        <div class="code-block">
+{
+  "success": false,
+  "error": true,
+  "message": "Analysis failed: [specific error message]",
+  "timestamp": "2024-08-06T12:00:00.000Z"
+}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Environment Variables -->
+        <div class="row mb-5">
+            <div class="col-12">
+                <h2>Environment Variables</h2>
+                <p>Configure the following environment variables for full functionality:</p>
+                
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Variable</th>
+                                <th>Required</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>SESSION_SECRET</code></td>
+                                <td>Yes</td>
+                                <td>Flask session secret key</td>
+                            </tr>
+                            <tr>
+                                <td><code>OPENAI_API_KEY</code></td>
+                                <td>No</td>
+                                <td>OpenAI API key for LangChain AI insights</td>
+                            </tr>
+                            <tr>
+                                <td><code>AWS_ACCESS_KEY_ID</code></td>
+                                <td>No</td>
+                                <td>AWS access key for S3 data access</td>
+                            </tr>
+                            <tr>
+                                <td><code>AWS_SECRET_ACCESS_KEY</code></td>
+                                <td>No</td>
+                                <td>AWS secret key for S3 data access</td>
+                            </tr>
+                            <tr>
+                                <td><code>AWS_DEFAULT_REGION</code></td>
+                                <td>No</td>
+                                <td>AWS region (default: us-east-1)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Features -->
+        <div class="row">
+            <div class="col-12">
+                <h2>Features</h2>
+                <div class="row">
+                    <div class="col-md-6">
+                        <h5>📊 Statistical Analysis</h5>
+                        <ul>
+                            <li>Descriptive statistics</li>
+                            <li>Correlation analysis</li>
+                            <li>Regression analysis</li>
+                            <li>Normality testing</li>
+                            <li>Outlier detection</li>
+                        </ul>
+
+                        <h5>📈 Data Visualization</h5>
+                        <ul>
+                            <li>Histograms</li>
+                            <li>Box plots</li>
+                            <li>Scatter plots</li>
+                            <li>Correlation heatmaps</li>
+                            <li>Bar charts</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h5>🌐 Web Scraping</h5>
+                        <ul>
+                            <li>Wikipedia data extraction</li>
+                            <li>Table data scraping</li>
+                            <li>Text content analysis</li>
+                            <li>Structured data extraction</li>
+                        </ul>
+
+                        <h5>🤖 AI Integration</h5>
+                        <ul>
+                            <li>LangChain-powered insights</li>
+                            <li>Automated data interpretation</li>
+                            <li>Query-specific analysis</li>
+                            <li>Structured data extraction from text</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="row mt-5">
+            <div class="col-12">
+                <hr>
+                <p class="text-muted text-center">Data Analyst Agent API - Comprehensive data analysis at your fingertips</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
