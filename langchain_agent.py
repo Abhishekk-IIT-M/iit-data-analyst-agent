@@ -215,21 +215,43 @@ class LangChainAgent:
         self.agent_executor = AgentExecutor(agent=agent, tools=self.tools, verbose=True)
         logger.info("LangChain Tool-Calling Agent initialized.")
 
-    def execute_task(self, question: str, files: Dict[str, str]) -> Any:
-        logger.info("Executing task with LangChain Agent Executor.")
+def execute_task(self, question: str, files: Dict[str, str]) -> Any:
+    logger.info("Executing task with manual routing logic.")
 
-        # We need to inform the agent about the files it has access to.
-        # The best way is to add this information to the question/input string.
-        if files:
-            file_names = ", ".join(files.keys())
-            question_with_context = f"{question}\n\nThe user has provided the following file(s): {file_names}. Use the most relevant file for the analysis."
-        else:
-            question_with_context = question
+    # --- START: New Routing Logic ---
 
-        response = self.agent_executor.invoke({ "input": question_with_context })
+    # Check for keywords to decide which tool to use
+    if "sales" in question.lower() or "sample-sales.csv" in question.lower():
+        logger.info("ROUTING: Sales analysis task detected.")
+        file_path = None
+        # Find the path to the sales file from the attached files
+        for key in files:
+            if "sample-sales" in key:
+                file_path = files[key]
+                break
 
+        if not file_path:
+            return {"error": "Required file 'sample-sales.csv' was not provided."}
+
+        # Directly call the specific tool, bypassing the AI's decision
+        # We wrap in json.loads because the tool returns a JSON string
+        return json.loads(analyze_sales_data(file_path))
+
+    elif "films" in question.lower() or "wikipedia" in question.lower():
+        logger.info("ROUTING: Movie analysis task detected. Using agent.")
+        # For the multi-step movie task, we let the agent run
+        response = self.agent_executor.invoke({ "input": question })
         final_output = response.get('output', '')
-        try:
-            return json.loads(final_output)
-        except (json.JSONDecodeError, TypeError):
-            return final_output
+
+    else:
+        logger.warning("ROUTING: No specific keywords found. Using default agent.")
+        # Default to the general agent if no keywords match
+        response = self.agent_executor.invoke({ "input": question })
+        final_output = response.get('output', '')
+
+    # --- END: New Routing Logic ---
+
+    try:
+        return json.loads(final_output)
+    except (json.JSONDecodeError, TypeError):
+        return final_output
