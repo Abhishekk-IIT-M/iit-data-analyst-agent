@@ -29,7 +29,7 @@ data_agent = DataAnalystAgent()
 
 
 # The project requires the endpoint to be at /api/
-@app.route('/api/', methods=['POST'])
+@app.route('/', methods=['POST'])
 def analyze_data_endpoint():
     """
     Main endpoint for data analysis requests as per the project spec.
