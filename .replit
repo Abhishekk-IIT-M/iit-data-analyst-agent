@@ -2,7 +2,24 @@ modules = ["python-3.11"]
 
 [nix]
 channel = "stable-25_05"
-packages = ["bash", "cairo", "ffmpeg-full", "freetype", "ghostscript", "glibcLocales", "gobject-introspection", "gtk3", "libxcrypt", "openssl", "pkg-config", "postgresql", "qhull", "tcl", "tk", "xsimd"]
+packages = [
+  "bash",
+  "cairo",
+  "ffmpeg-full",
+  "freetype",
+  "ghostscript",
+  "glibcLocales",
+  "gobject-introspection",
+  "gtk3",
+  "libxcrypt",
+  "openssl",
+  "pkg-config",
+  "postgresql",
+  "qhull",
+  "tcl",
+  "tk",
+  "xsimd",
+]
 
 [deployment]
 deploymentTarget = "autoscale"
@@ -30,7 +47,7 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "gunicorn --bind 0.0.0.0:5000 --reuse-port --reload main:app"
+args = "python main.py"
 waitForPort = 5000
 
 [[workflows.workflow]]

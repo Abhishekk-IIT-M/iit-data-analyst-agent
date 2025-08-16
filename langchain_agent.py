@@ -1,360 +1,166 @@
 import os
 import pandas as pd
 import logging
-from typing import Dict, List, Any, Optional
+import io
+import base64
 import json
+import requests
+from typing import Dict, Any, List
 
-# LangChain imports
-try:
-    from langchain.llms import OpenAI
-    from langchain.chat_models import ChatOpenAI
-    from langchain.agents import create_pandas_dataframe_agent
-    from langchain.agents.agent_types import AgentType
-    from langchain.schema import HumanMessage, SystemMessage
-    from langchain.prompts import PromptTemplate
-    LANGCHAIN_AVAILABLE = True
-except ImportError:
-    LANGCHAIN_AVAILABLE = False
+# LangChain Imports
+from langchain_openai import ChatOpenAI
+from langchain.agents import AgentExecutor
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain.agents.format_scratchpad.openai_tools import (
+    format_to_openai_tool_messages,
+)
+from langchain.agents.output_parsers.openai_tools import OpenAIToolsAgentOutputParser
+from langchain_core.tools import tool
+
+# Other Module Imports
+import duckdb
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.linear_model import LinearRegression
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
+# --- Tool Definitions ---
+
+@tool
+def analyze_scraped_movie_data(file_path: str) -> str:
+    """
+    Reads a CSV file of scraped movie data, performs a complete analysis to answer the four
+    specific questions (number of $2bn movies before 2000, earliest >$1.5bn film, Rank/Peak
+    correlation, and a scatterplot), and returns the final formatted JSON array.
+    This is the primary analysis tool for the Wikipedia movie data task.
+    """
+    logger.info(f"Using analyze_scraped_movie_data tool on file: {file_path}")
+    try:
+        df = pd.read_csv(file_path)
+
+        # Data Cleaning
+        df['Worldwide gross'] = df['Worldwide gross'].astype(str).str.replace(r'[$,]', '', regex=True)
+        df['Worldwide gross'] = df['Worldwide gross'].str.replace(r'^[A-Z]+', '', regex=True)
+        df['Worldwide gross'] = pd.to_numeric(df['Worldwide gross'], errors='coerce')
+
+        df['Year'] = pd.to_numeric(df['Year'], errors='coerce')
+        df.dropna(subset=['Year', 'Worldwide gross'], inplace=True)
+        df['Year'] = df['Year'].astype(int)
+        df['Rank'] = pd.to_numeric(df['Rank'], errors='coerce')
+        df['Peak'] = pd.to_numeric(df['Peak'], errors='coerce')
+
+        # Answering questions
+        answer1 = len(df[(df['Worldwide gross'] >= 2_000_000_000) & (df['Year'] < 2000)])
+        movies_over_1_5bn = df[df['Worldwide gross'] > 1_500_000_000]
+        answer2 = movies_over_1_5bn.loc[movies_over_1_5bn['Year'].idxmin()]['Title'] if not movies_over_1_5bn.empty else "No film found"
+        answer3 = df['Rank'].corr(df['Peak'])
+
+        # Plotting
+        plt.figure(figsize=(8, 6))
+        sns.scatterplot(data=df, x='Rank', y='Peak')
+        m, b = np.polyfit(df['Rank'], df['Peak'], 1)
+        plt.plot(df['Rank'], m * df['Rank'] + b, color='red', linestyle='--')
+        plt.title('Rank vs. Peak of Highest-Grossing Films')
+        plt.xlabel('Rank')
+        plt.ylabel('Peak')
+
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', dpi=75)
+        buf.seek(0)
+        image_base64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+        answer4 = f"data:image/png;base64,{image_base64}"
+        plt.close()
+
+        final_result = [answer1, answer2, float(answer3), answer4]
+        return json.dumps(final_result)
+
+    except Exception as e:
+        logger.error(f"Analysis tool failed: {e}", exc_info=True)
+        return f"Error during analysis: {e}"
+
+@tool
+def web_scraper(url: str) -> str:
+    """
+    Scrapes the first table from a URL, saves it to 'temp_data.csv',
+    and returns a summary including the filename.
+    """
+    cleaned_url = url.strip().strip("'\"")
+    logger.info(f"Using web_scraper tool for cleaned URL: {cleaned_url}")
+    try:
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+        response = requests.get(cleaned_url, headers=headers, timeout=30)
+        response.raise_for_status()
+        tables = pd.read_html(io.StringIO(response.text))
+        if tables:
+            df = tables[0]
+            temp_file_path = "temp_data.csv"
+            df.to_csv(temp_file_path, index=False)
+            summary = {"message": f"Successfully scraped and saved data to {temp_file_path}"}
+            return json.dumps(summary)
+        else:
+            return "Error: No tables found at the specified URL."
+    except Exception as e:
+        logger.error(f"Web scraping failed for {cleaned_url}: {e}")
+        return f"Error: Failed to scrape the URL. Reason: {e}"
+
+@tool
+def duckdb_sql_querier(query: str) -> str:
+    """
+    Executes a DuckDB SQL query, especially for querying Parquet files from S3.
+    """
+    logger.info(f"Using duckdb_sql_querier tool with query: {query[:100]}...")
+    try:
+        con = duckdb.connect(database=':memory:')
+        result = con.execute(query).fetchall()
+        return str(result)
+    except Exception as e:
+        logger.error(f"DuckDB query failed: {e}")
+        return f"Error: DuckDB query failed. Reason: {e}"
+
+
 class LangChainAgent:
-    """
-    LangChain integration for intelligent data analysis
-    """
-    
     def __init__(self):
-        self.llm = None
-        self.chat_model = None
-        self._setup_models()
-    
-    def _setup_models(self):
-        """Initialize LangChain models"""
+        self.llm = ChatOpenAI(model="gpt-4o-mini", temperature=0, openai_api_key=os.getenv('OPENAI_API_KEY'))
+        self.tools = [web_scraper, duckdb_sql_querier, analyze_scraped_movie_data]
+
+        # Bind the tools to the model
+        llm_with_tools = self.llm.bind_tools(self.tools)
+
+        # Create the new, more efficient prompt
+        self.prompt = ChatPromptTemplate.from_messages([
+            ("system", "You are a helpful data analyst. You must use the provided tools to answer the user's question."),
+            ("user", "{input}"),
+            MessagesPlaceholder(variable_name="agent_scratchpad"),
+        ])
+
+        # Create the agent
+        agent = (
+            {
+                "input": lambda x: x["input"],
+                "agent_scratchpad": lambda x: format_to_openai_tool_messages(x["intermediate_steps"]),
+            }
+            | self.prompt
+            | llm_with_tools
+            | OpenAIToolsAgentOutputParser()
+        )
+
+        self.agent_executor = AgentExecutor(agent=agent, tools=self.tools, verbose=True)
+        logger.info("LangChain Tool-Calling Agent initialized.")
+
+    def execute_task(self, question: str, files: Dict[str, str]) -> Any:
+        logger.info("Executing task with LangChain Agent Executor.")
+
+        # The new agent structure doesn't use the 'files' variable in the prompt,
+        # but we keep it in the function signature for consistency.
+        response = self.agent_executor.invoke({ "input": question })
+
+        # The output from a tool-calling agent is often the final answer directly
+        # If the last step was a tool call that produced the final JSON, we extract it.
+        final_output = response.get('output', '')
         try:
-            if not LANGCHAIN_AVAILABLE:
-                logger.warning("LangChain not available. AI insights will be limited.")
-                return
-            
-            api_key = os.getenv('OPENAI_API_KEY')
-            if not api_key:
-                logger.warning("OpenAI API key not found. AI insights will be limited.")
-                return
-            
-            # Initialize models
-            self.llm = OpenAI(
-                temperature=0.1,
-                openai_api_key=api_key,
-                max_tokens=1000
-            )
-            
-            self.chat_model = ChatOpenAI(
-                model="gpt-3.5-turbo",
-                temperature=0.1,
-                openai_api_key=api_key,
-                max_tokens=1000
-            )
-            
-            logger.info("LangChain models initialized successfully")
-            
-        except Exception as e:
-            logger.error(f"Failed to initialize LangChain models: {str(e)}")
-    
-    def generate_insights(
-        self, 
-        df: pd.DataFrame, 
-        statistical_results: Dict[str, Any],
-        query: Optional[str] = None
-    ) -> List[Dict[str, str]]:
-        """
-        Generate AI-powered insights from data analysis results
-        """
-        try:
-            insights = []
-            
-            if not self.chat_model:
-                # Fallback to rule-based insights
-                return self._generate_rule_based_insights(df, statistical_results)
-            
-            # Create data summary for AI analysis
-            data_summary = self._create_data_summary(df, statistical_results)
-            
-            # Generate general insights
-            general_insights = self._generate_general_insights(data_summary)
-            if general_insights:
-                insights.extend(general_insights)
-            
-            # Generate specific insights if query provided
-            if query:
-                specific_insights = self._generate_query_specific_insights(data_summary, query)
-                if specific_insights:
-                    insights.extend(specific_insights)
-            
-            # Generate statistical insights
-            statistical_insights = self._generate_statistical_insights(statistical_results)
-            if statistical_insights:
-                insights.extend(statistical_insights)
-            
-            return insights
-            
-        except Exception as e:
-            logger.error(f"Insight generation failed: {str(e)}")
-            return self._generate_rule_based_insights(df, statistical_results)
-    
-    def extract_structured_data(self, text_content: str) -> Optional[List[Dict[str, Any]]]:
-        """
-        Extract structured data from unstructured text using AI
-        """
-        try:
-            if not self.chat_model:
-                return None
-            
-            prompt = f"""
-            Extract structured data from the following text. 
-            Return the data as a JSON array of objects where each object represents a data point.
-            If no structured data can be extracted, return an empty array.
-            
-            Text content:
-            {text_content[:2000]}  # Limit text length
-            
-            Return only valid JSON:
-            """
-            
-            messages = [
-                SystemMessage(content="You are a data extraction expert. Extract structured data from text and return as JSON."),
-                HumanMessage(content=prompt)
-            ]
-            
-            response = self.chat_model(messages)
-            
-            # Try to parse JSON response
-            try:
-                structured_data = json.loads(response.content)
-                if isinstance(structured_data, list):
-                    return structured_data
-            except json.JSONDecodeError:
-                logger.warning("Could not parse structured data response as JSON")
-            
-            return None
-            
-        except Exception as e:
-            logger.error(f"Structured data extraction failed: {str(e)}")
-            return None
-    
-    def create_pandas_agent(self, df: pd.DataFrame) -> Any:
-        """
-        Create a pandas DataFrame agent for interactive querying
-        """
-        try:
-            if not LANGCHAIN_AVAILABLE or not self.llm:
-                return None
-            
-            agent = create_pandas_dataframe_agent(
-                self.llm,
-                df,
-                verbose=True,
-                agent_type=AgentType.ZERO_SHOT_REACT_DESCRIPTION
-            )
-            
-            return agent
-            
-        except Exception as e:
-            logger.error(f"Pandas agent creation failed: {str(e)}")
-            return None
-    
-    def _create_data_summary(self, df: pd.DataFrame, statistical_results: Dict[str, Any]) -> str:
-        """Create a comprehensive summary of the data for AI analysis"""
-        summary_parts = []
-        
-        # Basic data info
-        summary_parts.append(f"Dataset contains {len(df)} rows and {len(df.columns)} columns.")
-        summary_parts.append(f"Columns: {', '.join(df.columns.tolist())}")
-        
-        # Data types
-        numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
-        categorical_cols = df.select_dtypes(include=['object', 'category']).columns.tolist()
-        
-        if numeric_cols:
-            summary_parts.append(f"Numeric columns: {', '.join(numeric_cols)}")
-        if categorical_cols:
-            summary_parts.append(f"Categorical columns: {', '.join(categorical_cols)}")
-        
-        # Statistical summary
-        if 'descriptive_stats' in statistical_results:
-            summary_parts.append("Statistical analysis shows:")
-            desc_stats = statistical_results['descriptive_stats']
-            if isinstance(desc_stats, dict) and 'basic_stats' in desc_stats:
-                for col, stats in desc_stats['basic_stats'].items():
-                    if isinstance(stats, dict) and 'mean' in stats:
-                        summary_parts.append(f"  {col}: mean={stats['mean']:.2f}, std={stats.get('std', 0):.2f}")
-        
-        # Correlation insights
-        if 'correlation_analysis' in statistical_results:
-            corr_data = statistical_results['correlation_analysis']
-            if 'strong_correlations' in corr_data:
-                strong_corrs = corr_data['strong_correlations']
-                if strong_corrs:
-                    summary_parts.append("Strong correlations found:")
-                    for corr in strong_corrs[:3]:  # Top 3
-                        summary_parts.append(f"  {corr['variable1']} vs {corr['variable2']}: r={corr['pearson_r']:.2f}")
-        
-        return '\n'.join(summary_parts)
-    
-    def _generate_general_insights(self, data_summary: str) -> List[Dict[str, str]]:
-        """Generate general insights about the dataset"""
-        try:
-            prompt = f"""
-            Based on the following data summary, provide 3-5 key insights about the dataset.
-            Focus on data quality, patterns, and potential areas of interest for analysis.
-            
-            Data Summary:
-            {data_summary}
-            
-            Provide insights in this format:
-            1. [Insight about data structure/quality]
-            2. [Insight about patterns or trends]
-            3. [Insight about potential analysis opportunities]
-            """
-            
-            messages = [
-                SystemMessage(content="You are a data analyst providing insights about datasets."),
-                HumanMessage(content=prompt)
-            ]
-            
-            response = self.chat_model(messages)
-            insights = self._parse_insights_response(response.content, "general")
-            
-            return insights
-            
-        except Exception as e:
-            logger.error(f"General insight generation failed: {str(e)}")
-            return []
-    
-    def _generate_query_specific_insights(self, data_summary: str, query: str) -> List[Dict[str, str]]:
-        """Generate insights specific to user query"""
-        try:
-            prompt = f"""
-            Based on the data summary and user query, provide specific insights that address the query.
-            
-            Data Summary:
-            {data_summary}
-            
-            User Query: {query}
-            
-            Provide 2-3 specific insights that directly relate to the user's question.
-            """
-            
-            messages = [
-                SystemMessage(content="You are a data analyst answering specific questions about datasets."),
-                HumanMessage(content=prompt)
-            ]
-            
-            response = self.chat_model(messages)
-            insights = self._parse_insights_response(response.content, "query_specific")
-            
-            return insights
-            
-        except Exception as e:
-            logger.error(f"Query-specific insight generation failed: {str(e)}")
-            return []
-    
-    def _generate_statistical_insights(self, statistical_results: Dict[str, Any]) -> List[Dict[str, str]]:
-        """Generate insights from statistical analysis results"""
-        insights = []
-        
-        try:
-            # Correlation insights
-            if 'correlation_analysis' in statistical_results:
-                corr_data = statistical_results['correlation_analysis']
-                if 'strong_correlations' in corr_data and corr_data['strong_correlations']:
-                    insights.append({
-                        'type': 'correlation',
-                        'title': 'Strong Correlations Detected',
-                        'content': f"Found {len(corr_data['strong_correlations'])} strong correlations in the data, "
-                                 f"suggesting potential relationships between variables that warrant further investigation."
-                    })
-            
-            # Outlier insights
-            if 'outlier_analysis' in statistical_results:
-                outlier_data = statistical_results['outlier_analysis']
-                high_outlier_cols = [col for col, data in outlier_data.items() 
-                                   if isinstance(data, dict) and 
-                                   data.get('iqr_method', {}).get('percentage', 0) > 5]
-                
-                if high_outlier_cols:
-                    insights.append({
-                        'type': 'outliers',
-                        'title': 'Significant Outliers Detected',
-                        'content': f"Variables {', '.join(high_outlier_cols)} contain significant outliers (>5% of data). "
-                                 f"Consider investigating these anomalies or applying outlier treatment."
-                    })
-            
-            # Normality insights
-            if 'normality_tests' in statistical_results:
-                normality_data = statistical_results['normality_tests']
-                non_normal_vars = [var for var, tests in normality_data.items()
-                                 if isinstance(tests, dict) and 
-                                 not tests.get('shapiro_wilk', {}).get('is_normal', True)]
-                
-                if non_normal_vars:
-                    insights.append({
-                        'type': 'normality',
-                        'title': 'Non-normal Distributions Detected',
-                        'content': f"Variables {', '.join(non_normal_vars)} do not follow normal distributions. "
-                                 f"Consider data transformation or non-parametric tests for these variables."
-                    })
-            
-            return insights
-            
-        except Exception as e:
-            logger.error(f"Statistical insight generation failed: {str(e)}")
-            return []
-    
-    def _parse_insights_response(self, response: str, insight_type: str) -> List[Dict[str, str]]:
-        """Parse AI response into structured insights"""
-        insights = []
-        
-        try:
-            lines = response.strip().split('\n')
-            for line in lines:
-                line = line.strip()
-                if line and (line.startswith(('1.', '2.', '3.', '4.', '5.')) or line.startswith('-')):
-                    content = line.split('.', 1)[-1].strip() if '.' in line else line.strip('- ')
-                    if content:
-                        insights.append({
-                            'type': insight_type,
-                            'title': f"{insight_type.title()} Insight",
-                            'content': content
-                        })
-            
-            return insights
-            
-        except Exception as e:
-            logger.error(f"Insight parsing failed: {str(e)}")
-            return []
-    
-    def _generate_rule_based_insights(self, df: pd.DataFrame, statistical_results: Dict[str, Any]) -> List[Dict[str, str]]:
-        """Fallback rule-based insights when AI is not available"""
-        insights = []
-        
-        # Basic data insights
-        insights.append({
-            'type': 'basic',
-            'title': 'Dataset Overview',
-            'content': f"Dataset contains {len(df)} rows and {len(df.columns)} columns. "
-                      f"Data types include {len(df.select_dtypes(include=['number']).columns)} numeric "
-                      f"and {len(df.select_dtypes(include=['object']).columns)} categorical variables."
-        })
-        
-        # Missing data insights
-        missing_data = df.isnull().sum()
-        if missing_data.sum() > 0:
-            high_missing = missing_data[missing_data > len(df) * 0.1]
-            if not high_missing.empty:
-                insights.append({
-                    'type': 'data_quality',
-                    'title': 'Missing Data Alert',
-                    'content': f"High missing data detected in columns: {', '.join(high_missing.index)}. "
-                              f"Consider data imputation or removal of these variables."
-                })
-        
-        return insights
+            # Check if the output is already a JSON string from our analysis tool
+            return json.loads(final_output)
+        except (json.JSONDecodeError, TypeError):
+            return final_output

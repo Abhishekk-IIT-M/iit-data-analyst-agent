@@ -380,6 +380,18 @@ wheels = [
 ]
 
 [[package]]
+name = "flask-cors"
+version = "5.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "flask" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/4f/d0/d9e52b154e603b0faccc0b7c2ad36a764d8755ef4036acbf1582a67fb86b/flask_cors-5.0.0.tar.gz", hash = "sha256:5aadb4b950c4e93745034594d9f3ea6591f734bb3662e16e255ffbf5e89c88ef", size = 30954 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/56/07/1afa0514c876282bebc1c9aee83c6bb98fe6415cf57b88d9b06e7e29bf9c/Flask_Cors-5.0.0-py2.py3-none-any.whl", hash = "sha256:b9e307d082a9261c100d8fb0ba909eec6a228ed1b60a8315fd85f783d61910bc", size = 14463 },
+]
+
+[[package]]
 name = "flask-sqlalchemy"
 version = "3.1.1"
 source = { registry = "https://pypi.org/simple" }
@@ -764,6 +776,20 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/8b/49/7568baeb96a57d3218cb5f1f113b142063679088fd3a0d0cae1feb0b3d36/langchain_core-0.3.72.tar.gz", hash = "sha256:4de3828909b3d7910c313242ab07b241294650f5cb6eac17738dd3638b1cd7de", size = 567227 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/6e/7d/9f75023c478e3b854d67da31d721e39f0eb30ae969ec6e755430cb1c0fb5/langchain_core-0.3.72-py3-none-any.whl", hash = "sha256:9fa15d390600eb6b6544397a7aa84be9564939b6adf7a2b091179ea30405b240", size = 442806 },
+]
+
+[[package]]
+name = "langchain-openai"
+version = "0.2.11"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "langchain-core" },
+    { name = "openai" },
+    { name = "tiktoken" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/37/33/9c43a11cad4f807311f8a22d8ca9cf25de5ac8d3b710203165cff7867e22/langchain_openai-0.2.11.tar.gz", hash = "sha256:563bd843092d260c7ffd88b8e0e6b830f36347e058e62a6d5e9cc4c461a8da98", size = 43441 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/67/15/b5a83ff73f5550d2be854265dd9c507389d69516391a46a30683a3683fcc/langchain_openai-0.2.11-py3-none-any.whl", hash = "sha256:c019ae915a5782943bee9503388e65c8622d400e0451ef885f3e4989cf35727f", size = 50661 },
 ]
 
 [[package]]
@@ -1564,9 +1590,11 @@ dependencies = [
     { name = "duckdb" },
     { name = "email-validator" },
     { name = "flask" },
+    { name = "flask-cors" },
     { name = "flask-sqlalchemy" },
     { name = "gunicorn" },
     { name = "langchain" },
+    { name = "langchain-openai" },
     { name = "matplotlib" },
     { name = "numpy" },
     { name = "openai" },
@@ -1587,9 +1615,11 @@ requires-dist = [
     { name = "duckdb", specifier = ">=1.3.2" },
     { name = "email-validator", specifier = ">=2.2.0" },
     { name = "flask", specifier = ">=3.1.1" },
+    { name = "flask-cors", specifier = "==5.0.0" },
     { name = "flask-sqlalchemy", specifier = ">=3.1.1" },
     { name = "gunicorn", specifier = ">=23.0.0" },
     { name = "langchain", specifier = ">=0.3.27" },
+    { name = "langchain-openai", specifier = "==0.2.11" },
     { name = "matplotlib", specifier = ">=3.10.5" },
     { name = "numpy", specifier = ">=2.3.2" },
     { name = "openai", specifier = ">=1.99.1" },
@@ -1857,6 +1887,36 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/b7/4d/08c89e34946fce2aec4fbb45c9016efd5f4d7f24af8e5d93296e935631d8/threadpoolctl-3.6.0.tar.gz", hash = "sha256:8ab8b4aa3491d812b623328249fab5302a68d2d71745c8a4c719a2fcaba9f44e", size = 21274 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/32/d5/f9a850d79b0851d1d4ef6456097579a9005b31fea68726a4ae5f2d82ddd9/threadpoolctl-3.6.0-py3-none-any.whl", hash = "sha256:43a0b8fd5a2928500110039e43a5eed8480b918967083ea48dc3ab9f13c4a7fb", size = 18638 },
+]
+
+[[package]]
+name = "tiktoken"
+version = "0.10.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "regex" },
+    { name = "requests" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/fd/6a/e0f66d5cf612979fec2c18f9069962c73ed51949403967ba0de9ea6859e5/tiktoken-0.10.0.tar.gz", hash = "sha256:7cd88c11699b18081822e6ae1beee55e8f20ea361d73c507d33f5a89a1898f1c", size = 36451 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e9/ba/d392a2ffa94dbbcf1cd187b70df18f61a96f76d1de9d5d2bc8414b402d05/tiktoken-0.10.0-cp311-cp311-macosx_10_12_x86_64.whl", hash = "sha256:29f55c6b7c9a6a7ea953691c3962ee8fe4ee2f0ceb2a3fded3925acfc45e4b0a", size = 1047150 },
+    { url = "https://files.pythonhosted.org/packages/98/e0/86b36df9ab5f014ef976f75b000b9daf06c6edff229186e05e56b94f4cdf/tiktoken-0.10.0-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:f641d0735059b48252c4409d6546b6a62edeb4c4e48306499db11bbe403b872f", size = 988709 },
+    { url = "https://files.pythonhosted.org/packages/c7/43/24813c6e7db16314229b5cd13bc23719a58401242dd42be2bac3b36516d4/tiktoken-0.10.0-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:ad76e03676b36c2a5e5304b428cff48eb86a033af55212d41a6ac6faec25b2ad", size = 1120621 },
+    { url = "https://files.pythonhosted.org/packages/e5/94/fd4156ccc20d4c7986352353385d768307e4c6d8e2502c3d6ee061847474/tiktoken-0.10.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:6420ecbd4dc4db3b82ca3421f50d1207d750de1a2856e6ca0544294fe58d2853", size = 1175233 },
+    { url = "https://files.pythonhosted.org/packages/f4/db/32f4b4f1c13f84118924258b7a92c2a20a1d72f974abcdd73c3cd6308983/tiktoken-0.10.0-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:d2e032cd44700a9ed511c50b9f302bb9e9e77e2ebf8e2d9b8ec12ce64ebf00c6", size = 1237489 },
+    { url = "https://files.pythonhosted.org/packages/d1/a4/dc6558ce48a6c339a30a9e532bb5767e0ff511f8f948bca1340f57aa2fea/tiktoken-0.10.0-cp311-cp311-win_amd64.whl", hash = "sha256:eb520960fa1788caf033489e3b63bb675c0f321db40569b2d3ca24d7fab5ca72", size = 876253 },
+    { url = "https://files.pythonhosted.org/packages/2f/8a/2dad6ea056f88f12602bdbdba19ed1d29a574bb8dbe034af0842eb2ee29f/tiktoken-0.10.0-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:25c27021a605b2778af07f84a33fe7c74b5c960a8cfac5d2a7a1075ed592cbe4", size = 1046690 },
+    { url = "https://files.pythonhosted.org/packages/84/88/b0ec9383e7126f7cf033971dac81c4dea0954607db8c2fbfe109061bf730/tiktoken-0.10.0-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:45d654f049b4f7ed617ad0c66462c15cc41e5db120f37f122d5b57ffa2aec062", size = 988269 },
+    { url = "https://files.pythonhosted.org/packages/28/83/ed1900dd68890c891f55ded1f760f7878c5e16c8c68e576145105d66aa63/tiktoken-0.10.0-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:34f73d93641b9cc73e19b18dbf9ce1baf086f1c4e18cfa36b952956843bca23c", size = 1118515 },
+    { url = "https://files.pythonhosted.org/packages/9a/a8/84ad6c23cfd51d2c39ba1bfbc70b6208c6be3e5cd15132a9d11cc93bfdd5/tiktoken-0.10.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:4fbfc5dda624c0f85c56bbf8f2ffb42964c798fc6fc1c321a452bf31d4ba21f5", size = 1174193 },
+    { url = "https://files.pythonhosted.org/packages/7b/b5/7be4c78a10566ae068d88788a6fdf3a8b1162e7f78997999c46c919cdb69/tiktoken-0.10.0-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:853671af10636b581d632fe7b64b755301c73bc1f2ce837a8cdd9a44ab51f846", size = 1235834 },
+    { url = "https://files.pythonhosted.org/packages/55/da/a0e90c85f36bd21ef4dbe881f9e259403c6fd6287841ff3691c1d2a5baab/tiktoken-0.10.0-cp312-cp312-win_amd64.whl", hash = "sha256:56c4e7544be63c78265c82857b9f2a4e2190ae29541fe3467708fc7aabcb1522", size = 875661 },
+    { url = "https://files.pythonhosted.org/packages/1a/44/03c259d8df262181f0efab0159373435284f1074adf966418663879023e1/tiktoken-0.10.0-cp313-cp313-macosx_10_13_x86_64.whl", hash = "sha256:10e779827ddb0490a415d09d95f8e7a982fd8e14f88c4c2348358f722af3c415", size = 1046536 },
+    { url = "https://files.pythonhosted.org/packages/e3/16/98ee535d30f7abf528ac25e78d67171cc2dfc1366d762cf79eb0dcc9054d/tiktoken-0.10.0-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:783892cdbec0d33f0f51373d8969e059ab1244af531a52338f702131a032a116", size = 987947 },
+    { url = "https://files.pythonhosted.org/packages/2f/bd/c3847b55e4fd6c6ab89ab75d258c725c67890734a4e58e28315ae2208ee1/tiktoken-0.10.0-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:43f38d62b6a62a7c82be3770fcdc24cdf5bff3bdf718909d038b804ac774a025", size = 1118091 },
+    { url = "https://files.pythonhosted.org/packages/8c/07/9a2c6e1d1ef138f79a6c943bf1c7c7e7cc159e2b7fbbe6ce5d176f963232/tiktoken-0.10.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:72d0b30e08f1e856fa76ee423a3d3f0b1bc984cb6e86a21dbd7c5eee8f67f8f5", size = 1174129 },
+    { url = "https://files.pythonhosted.org/packages/ba/4f/ae9e36e43c0abbeb631b848697b22662cca5dbbe90a1b692b5c0ceda0fac/tiktoken-0.10.0-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:fa840eba09a0c1db0b436baf6cfe1ab7906f33fb663cf96f772a818bad5856a6", size = 1236097 },
+    { url = "https://files.pythonhosted.org/packages/10/74/c6f69e46f98e42d6727853e4017d6287b57075905ff715fae0f35fa53173/tiktoken-0.10.0-cp313-cp313-win_amd64.whl", hash = "sha256:642b8d9f266004629ea2457aa29a9eed4f1a031fd804f8c489edbf32df7026c3", size = 876020 },
 ]
 
 [[package]]

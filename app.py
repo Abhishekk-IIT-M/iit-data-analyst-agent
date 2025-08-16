@@ -1,130 +1,89 @@
 import os
 import logging
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 from werkzeug.utils import secure_filename
-from werkzeug.exceptions import RequestEntityTooLarge
 import tempfile
 import traceback
 
+# Assume this class will be our main agent logic file later
 from data_analyst_agent import DataAnalystAgent
-from utils import validate_file, create_error_response, create_success_response
 
 # Configure logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Create Flask app
 app = Flask(__name__)
-app.secret_key = os.environ.get("SESSION_SECRET", "dev-secret-key-change-in-production")
+CORS(app)
+# A secret key is needed for Flask to handle some internal things
+app.secret_key = os.environ.get("SESSION_SECRET",
+                                "dev-secret-key-for-tds-project")
 
-# Configuration
-app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max file size
-UPLOAD_FOLDER = tempfile.gettempdir()
-ALLOWED_EXTENSIONS = {'csv', 'txt', 'parquet'}
+# Create a temporary directory for file uploads
+UPLOAD_FOLDER = tempfile.mkdtemp()
 
-# Initialize Data Analyst Agent
+# Initialize our Data Analyst Agent
+# This object will contain all the core logic
 data_agent = DataAnalystAgent()
 
-@app.route('/')
-def index():
-    """Serve API documentation page"""
-    return render_template('index.html')
 
-@app.route('/analyze', methods=['POST'])
-def analyze_data():
+# The project requires the endpoint to be at /api/
+@app.route('/api/', methods=['POST'])
+def analyze_data_endpoint():
     """
-    Main endpoint for data analysis requests
-    Accepts file uploads and analysis parameters
-    Returns structured JSON with analysis results
+    Main endpoint for data analysis requests as per the project spec.
+    It accepts a 'questions.txt' file and optional data files.
     """
+    logger.info("Received request at /api/")
+
+    # --- Simplified Input Handling ---
+    if 'questions.txt' not in request.files:
+        logger.error("Request missing 'questions.txt' file.")
+        return jsonify(
+            {"error": "Request must include a 'questions.txt' file."}), 400
+
+    temp_files = {}  # To store paths of temporarily saved files
     try:
-        logger.info("Received analysis request")
-        
-        # Parse request data
-        request_data = {}
-        
-        # Handle file upload if present
-        uploaded_file = None
-        if 'file' in request.files:
-            file = request.files['file']
-            if file.filename != '':
-                # Validate file
-                validation_result = validate_file(file, ALLOWED_EXTENSIONS)
-                if not validation_result['valid']:
-                    return jsonify(create_error_response(str(validation_result['error']))), 400
-                
-                # Save file temporarily
-                filename = secure_filename(file.filename or "uploaded_file")
+        # Save questions.txt and read its content
+        questions_file = request.files['questions.txt']
+        question_content = questions_file.read().decode('utf-8')
+        logger.info(f"Question received: {question_content[:100]}...")
+
+        # Save all other attached files temporarily
+        for key, file in request.files.items():
+            if key != 'questions.txt':
+                filename = secure_filename(file.filename)
                 filepath = os.path.join(UPLOAD_FOLDER, filename)
                 file.save(filepath)
-                uploaded_file = filepath
-                logger.info(f"File uploaded: {filename}")
-        
-        # Get other parameters from form data or JSON
-        if request.is_json:
-            request_data = request.get_json() or {}
-        else:
-            request_data = request.form.to_dict()
-        
-        # Extract analysis parameters
-        analysis_type = request_data.get('analysis_type', 'basic')
-        web_url = request_data.get('web_url')
-        s3_path = request_data.get('s3_path')
-        query = request_data.get('query')
-        visualization_type = request_data.get('visualization_type', 'auto')
-        statistical_tests_raw = request_data.get('statistical_tests', [])
-        statistical_tests = statistical_tests_raw if isinstance(statistical_tests_raw, list) else []
-        
-        # Validate that at least one data source is provided
-        if not any([uploaded_file, web_url, s3_path]):
-            return jsonify(create_error_response(
-                "No data source provided. Please upload a file, provide a web URL, or specify an S3 path."
-            )), 400
-        
-        # Perform analysis
-        result = data_agent.analyze(
-            file_path=uploaded_file,
-            web_url=web_url,
-            s3_path=s3_path,
-            analysis_type=analysis_type,
-            query=query,
-            visualization_type=visualization_type,
-            statistical_tests=statistical_tests
-        )
-        
-        # Clean up temporary file
-        if uploaded_file and os.path.exists(uploaded_file):
-            os.remove(uploaded_file)
-        
-        logger.info("Analysis completed successfully")
-        return jsonify(create_success_response(result))
-    
-    except RequestEntityTooLarge:
-        return jsonify(create_error_response("File too large. Maximum size is 100MB.")), 413
-    
+                temp_files[key] = filepath
+                logger.info(
+                    f"Saved temporary data file: {filename} at {filepath}")
+
+        # --- Simplified Agent Invocation ---
+        # We will build the agent logic to handle this simple input
+        result = data_agent.run(question=question_content, files=temp_files)
+
+        logger.info("Analysis completed successfully.")
+        # The agent is expected to return a JSON-serializable object (dict or list)
+        return jsonify(result)
+
     except Exception as e:
-        logger.error(f"Analysis failed: {str(e)}")
+        logger.error(f"An unexpected error occurred: {str(e)}")
         logger.error(traceback.format_exc())
-        
-        # Clean up temporary file in case of error
-        if 'uploaded_file' in locals() and uploaded_file and os.path.exists(uploaded_file):
-            os.remove(uploaded_file)
-        
-        return jsonify(create_error_response(
-            f"Analysis failed: {str(e)}"
-        )), 500
+        return jsonify({"error":
+                        f"An unexpected error occurred: {str(e)}"}), 500
 
-@app.errorhandler(404)
-def not_found(error):
-    return jsonify(create_error_response("Endpoint not found")), 404
+    finally:
+        # --- Cleanup ---
+        # Ensure all temporary files are deleted after the request is handled
+        for file_path in temp_files.values():
+            if os.path.exists(file_path):
+                os.remove(file_path)
+                logger.info(f"Cleaned up temporary file: {file_path}")
 
-@app.errorhandler(405)
-def method_not_allowed(error):
-    return jsonify(create_error_response("Method not allowed")), 405
 
-@app.errorhandler(500)
-def internal_error(error):
-    return jsonify(create_error_response("Internal server error")), 500
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+# Optional: Add a simple root route to confirm the server is running
+@app.route('/')
+def index():
+    return "Data Analyst Agent API is running."
