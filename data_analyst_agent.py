@@ -22,37 +22,36 @@ class DataAnalystAgent:
         self.langchain_agent = LangChainAgent()
         logger.info("DataAnalystAgent initialized.")
 
-    def run(self, question: str, files: Dict[str, str]) -> Any:
-        """
-        The new main method that runs the entire analysis.
-        It takes the user's question and a dictionary of file paths,
-        and passes them to the LangChain agent to get the final answer.
+def run(self, question: str, files: Dict[str, str]) -> Any:
+    """
+    The main method that runs the analysis by invoking the LangChain agent.
+    """
+    logger.info("DataAnalystAgent `run` method started.")
 
-        Args:
-            question (str): The content from questions.txt.
-            files (Dict[str, str]): A dictionary mapping original filenames to their temporary paths.
+    try:
+        # CORRECTED: The LangChain agent's main function is now invoke() on the agent_executor
+        # We will build the input and pass it to the agent executor.
 
-        Returns:
-            Any: The final result from the LangChain agent, which should be a
-                 JSON-serializable dictionary or list.
-        """
-        logger.info("DataAnalystAgent `run` method started.")
+        # We need to inform the agent about the files it has access to.
+        if files:
+            file_names = ", ".join(files.keys())
+            question_with_context = f"{question}\n\nThe user has provided the following file(s): {file_names}. Use the most relevant file for the analysis."
+        else:
+            question_with_context = question
+
+        # Directly call the agent executor
+        response = self.langchain_agent.agent_executor.invoke({
+            "input": question_with_context
+        })
+
+        final_output = response.get('output', '')
+        logger.info("LangChain agent finished execution.")
 
         try:
-            # The core of our project is this single call.
-            # We are delegating the complex decision-making process to our LangChainAgent.
-            # This agent will be responsible for understanding the question, parsing files,
-            # scraping websites, running analysis, and generating plots as needed.
+            return json.loads(final_output)
+        except (json.JSONDecodeError, TypeError):
+            return final_output
 
-            final_answer = self.langchain_agent.execute_task(
-                question=question,
-                files=files
-            )
-
-            logger.info("LangChain agent finished execution.")
-            return final_answer
-
-        except Exception as e:
-            logger.error(f"An error occurred in the agent's run method: {e}", exc_info=True)
-            # Re-raise the exception to be caught by the API endpoint
-            raise
+    except Exception as e:
+        logger.error(f"An error occurred in the agent's run method: {e}", exc_info=True)
+        raise
