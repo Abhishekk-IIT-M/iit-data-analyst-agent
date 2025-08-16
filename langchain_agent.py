@@ -5,6 +5,7 @@ import io
 import base64
 import json
 import requests
+import networkx as nx
 from typing import Dict, Any
 
 # LangChain Imports
@@ -96,6 +97,64 @@ def analyze_sales_data(file_path: str) -> str:
     except Exception as e:
         logger.error(f"Sales analysis tool failed: {e}", exc_info=True)
         return f"Error during sales analysis: {e}"
+
+@tool
+def analyze_network_data(file_path: str) -> str:
+    """
+    Reads an edge list from a CSV file, analyzes the network properties,
+    and returns a JSON object with the results. Use this for the 'sample-network' task.
+    """
+    logger.info(f"Using analyze_network_data tool on file: {file_path}")
+    try:
+        # Load data and create graph
+        df = pd.read_csv(file_path)
+        G = nx.from_pandas_edgelist(df, 'source', 'target')
+
+        # Calculations
+        edge_count = G.number_of_edges()
+        degrees = dict(G.degree())
+        highest_degree_node = max(degrees, key=degrees.get)
+        average_degree = sum(degrees.values()) / G.number_of_nodes()
+        density = nx.density(G)
+        shortest_path_alice_eve = nx.shortest_path_length(G, source='Alice', target='Eve')
+
+        # Network graph plot
+        plt.figure(figsize=(8, 6))
+        nx.draw(G, with_labels=True, node_color='skyblue', node_size=2000, edge_color='gray')
+        plt.title('Network Graph')
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', dpi=75)
+        buf.seek(0)
+        network_graph_base64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+        plt.close()
+
+        # Degree histogram plot
+        plt.figure(figsize=(8, 6))
+        plt.hist(degrees.values(), bins=range(1, max(degrees.values()) + 2), align='left', color='green')
+        plt.title('Degree Distribution')
+        plt.xlabel('Degree')
+        plt.ylabel('Number of Nodes')
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', dpi=75)
+        buf.seek(0)
+        degree_histogram_base64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+        plt.close()
+
+        # Format result
+        result = {
+            "edge_count": edge_count,
+            "highest_degree_node": highest_degree_node,
+            "average_degree": float(average_degree),
+            "density": float(density),
+            "shortest_path_alice_eve": shortest_path_alice_eve,
+            "network_graph": f"data:image/png;base64,{network_graph_base64}",
+            "degree_histogram": f"data:image/png;base64,{degree_histogram_base64}"
+        }
+        return json.dumps(result)
+    except Exception as e:
+        logger.error(f"Network analysis tool failed: {e}", exc_info=True)
+        return f"Error during network analysis: {e}"
+
 
 
 @tool
@@ -191,7 +250,7 @@ class LangChainAgent:
     def __init__(self):
         self.llm = ChatOpenAI(model="gpt-4o-mini", temperature=0, openai_api_key=os.getenv('OPENAI_API_KEY'))
         # UPDATE the tool list with the new sales tool
-        self.tools = [web_scraper, duckdb_sql_querier, analyze_scraped_movie_data, analyze_sales_data]
+        self.tools = [web_scraper, duckdb_sql_querier, analyze_scraped_movie_data, analyze_sales_data,analyze_network_data]
 
         llm_with_tools = self.llm.bind_tools(self.tools)
 
